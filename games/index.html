@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゲームあそびば</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    min-height:100vh;
+    background:linear-gradient(160deg,#1b2a4a,#0d1526);
+    font-family:"Hiragino Maru Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    color:#fff; display:flex; flex-direction:column; align-items:center;
+    padding:48px 20px;
+  }
+  h1 { font-size:28px; color:#ffd966; letter-spacing:2px; margin-bottom:6px; }
+  p.sub { color:#b9c6e0; margin-bottom:30px; font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+          gap:18px; width:100%; max-width:760px; }
+  a.card {
+    display:block; text-decoration:none; color:#fff;
+    background:#ffffff12; border:1px solid #ffffff22; border-radius:16px;
+    padding:26px 22px; transition:transform .08s, background .15s;
+  }
+  a.card:hover { transform:translateY(-3px); background:#ffffff1f; }
+  a.card .emoji { font-size:42px; display:block; margin-bottom:12px; }
+  a.card .name { font-size:19px; font-weight:bold; }
+  a.card .desc { font-size:13px; color:#b9c6e0; margin-top:6px; line-height:1.6; }
+</style>
+</head>
+<body>
+  <h1>🎮 ゲームあそびば</h1>
+  <p class="sub">あそびたいゲームをえらんでね</p>
+  <div class="grid">
+    <a class="card" href="./amusement-park/index.html">
+      <span class="emoji">🎡</span>
+      <span class="name">わくわくキッズランド</span>
+      <span class="desc">遊園地でアトラクションのミニゲーム4つ</span>
+    </a>
+    <a class="card" href="./train/index.html">
+      <span class="emoji">🚃</span>
+      <span class="name">でんしゃでGO！</span>
+      <span class="desc">駅を通過して車両を増やす電車スネーク</span>
+    </a>
+    <a class="card" href="./shopping/index.html">
+      <span class="emoji">🛒</span>
+      <span class="name">おかいものゲーム</span>
+      <span class="desc">お買い物ゲーム</span>
+    </a>
+    <a class="card" href="./spot-the-difference/index.html">
+      <span class="emoji">🔍</span>
+      <span class="name">まちがいさがし</span>
+      <span class="desc">間違い探しゲーム</span>
+    </a>
+  </div>
+</body>
+</html>

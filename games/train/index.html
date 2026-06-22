@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>でんしゃでGO！ ～駅をつなげ～</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: linear-gradient(160deg, #1b2a4a 0%, #0d1526 100%);
+    font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #wrap {
+    text-align: center;
+  }
+  h1 {
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    color: #ffd966;
+    text-shadow: 0 2px 0 #00000055;
+  }
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 480px;
+    margin: 0 auto 8px;
+    font-size: 15px;
+  }
+  #hud .pill {
+    background: #ffffff18;
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid #ffffff22;
+  }
+  #hud b { color: #7ee0ff; }
+  canvas {
+    background: #0a1020;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px #00000066, inset 0 0 0 2px #ffffff10;
+    display: block;
+  }
+  #msg {
+    position: relative;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #b9c6e0;
+    min-height: 20px;
+  }
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: #060a14cc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    backdrop-filter: blur(3px);
+  }
+  #overlay.hide { display: none; }
+  #overlay h2 { font-size: 30px; color: #ffd966; margin-bottom: 6px; }
+  #overlay p { color: #c9d4ea; margin-bottom: 18px; font-size: 14px; line-height: 1.8; }
+  #overlay button {
+    font: inherit;
+    font-size: 18px;
+    font-weight: bold;
+    color: #102040;
+    background: linear-gradient(180deg, #ffe27a, #ffc233);
+    border: none;
+    padding: 12px 34px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #b9851d, 0 8px 18px #00000066;
+    transition: transform .05s, box-shadow .05s;
+  }
+  #overlay button:active { transform: translateY(4px); box-shadow: 0 2px 0 #b9851d; }
+  .key { display:inline-block; background:#ffffff22; border:1px solid #ffffff33; border-radius:6px; padding:1px 8px; margin:0 2px; font-size:13px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>🚃 でんしゃでGO！ ～駅をつなげ～</h1>
+  <div id="hud">
+    <div class="pill">車両 <b id="cars">1</b> 両</div>
+    <div class="pill">スコア <b id="score">0</b></div>
+    <div class="pill">最高 <b id="best">0</b></div>
+  </div>
+  <canvas id="cv" width="480" height="480"></canvas>
+  <div id="msg">矢印キー / WASD で進路変更。駅 🚉 を通過して車両を増やそう！</div>
+</div>
+
+<div id="overlay">
+  <h2>でんしゃでGO！</h2>
+  <p>
+    駅 🚉 をめざして電車を走らせよう。<br>
+    駅を通過するたびに車両が <b>1両</b> 増えていく。<br>
+    自分の車両や壁にぶつかると脱線！<br><br>
+    操作: <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> または <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+  </p>
+  <button id="startBtn">発車！</button>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+const GRID = 20;                 // マス数
+const CELL = cv.width / GRID;    // 1マスの大きさ(px)
+
+const carsEl  = document.getElementById('cars');
+const scoreEl = document.getElementById('score');
+const bestEl  = document.getElementById('best');
+const msgEl   = document.getElementById('msg');
+const overlay = document.getElementById('overlay');
+const startBtn= document.getElementById('startBtn');
+
+let best = Number(localStorage.getItem('train_best') || 0);
+bestEl.textContent = best;
+
+// ゲーム状態
+let train, dir, nextDir, station, score, alive, tickMs, acc, lastTime, running;
+
+function reset() {
+  // 中央から3両編成でスタート（先頭が train[0]）
+  const cx = Math.floor(GRID/2), cy = Math.floor(GRID/2);
+  train = [{x:cx, y:cy}, {x:cx-1, y:cy}, {x:cx-2, y:cy}];
+  dir = {x:1, y:0};
+  nextDir = {x:1, y:0};
+  score = 0;
+  alive = true;
+  tickMs = 140;          // 速度（小さいほど速い）
+  acc = 0;
+  lastTime = 0;
+  placeStation();
+  updateHud();
+}
+
+function placeStation() {
+  let p;
+  do {
+    p = { x: Math.floor(Math.random()*GRID), y: Math.floor(Math.random()*GRID) };
+  } while (train.some(s => s.x===p.x && s.y===p.y));
+  station = p;
+}
+
+function updateHud() {
+  carsEl.textContent  = train.length;
+  scoreEl.textContent = score;
+}
+
+// 入力
+const KEYMAP = {
+  ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1}, ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+  w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0},
+  W:{x:0,y:-1}, S:{x:0,y:1}, A:{x:-1,y:0}, D:{x:1,y:0}
+};
+window.addEventListener('keydown', e => {
+  const nd = KEYMAP[e.key];
+  if (!nd) return;
+  e.preventDefault();
+  // 逆走（180度ターン）は禁止
+  if (nd.x === -dir.x && nd.y === -dir.y) return;
+  nextDir = nd;
+});
+
+function step() {
+  dir = nextDir;
+  const head = train[0];
+  const nx = head.x + dir.x;
+  const ny = head.y + dir.y;
+
+  // 壁に衝突 → 脱線
+  if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) return derail();
+  // 自分の車両に衝突（最後尾は今から動くので除外）
+  for (let i = 0; i < train.length - 1; i++) {
+    if (train[i].x === nx && train[i].y === ny) return derail();
+  }
+
+  train.unshift({x:nx, y:ny});
+
+  if (nx === station.x && ny === station.y) {
+    // 駅を通過 → 車両が増える（最後尾を消さない）
+    score += 10 + train.length;          // 長いほど高得点
+    if (tickMs > 70) tickMs -= 3;         // 少しずつ加速
+    placeStation();
+    flash('🚉 駅 通過！ 車両連結！');
+  } else {
+    train.pop();                          // 通常移動：最後尾を消す
+  }
+  updateHud();
+}
+
+function derail() {
+  alive = false;
+  running = false;
+  if (score > best) {
+    best = score;
+    localStorage.setItem('train_best', best);
+    bestEl.textContent = best;
+  }
+  overlay.classList.remove('hide');
+  overlay.querySelector('h2').textContent = '💥 脱線！';
+  overlay.querySelector('p').innerHTML =
+    `${train.length} 両編成 / スコア <b>${score}</b><br>もう一度挑戦しよう！`;
+  startBtn.textContent = 'もう一度';
+}
+
+function flash(text) {
+  msgEl.textContent = text;
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => {
+    msgEl.textContent = '矢印キー / WASD で進路変更。駅 🚉 を通過して車両を増やそう！';
+  }, 900);
+}
+
+// 描画
+function draw() {
+  // 背景（線路グリッド）
+  ctx.fillStyle = '#0a1020';
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle = '#ffffff0c';
+  ctx.lineWidth = 1;
+  for (let i=1;i<GRID;i++){
+    ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,cv.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(cv.width,i*CELL); ctx.stroke();
+  }
+
+  // 駅
+  drawStation(station.x, station.y);
+
+  // 電車
+  for (let i = train.length-1; i >= 0; i--) {
+    drawCar(train[i].x, train[i].y, i === 0, i);
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function drawCar(gx, gy, isHead, idx) {
+  const pad = 2;
+  const x = gx*CELL + pad, y = gy*CELL + pad;
+  const s = CELL - pad*2;
+  // 車体カラー：先頭は緑、車両は虹っぽくグラデ
+  let body, roof;
+  if (isHead) { body = '#34c759'; roof = '#1f8f3d'; }
+  else {
+    const hue = (idx * 28) % 360;
+    body = `hsl(${hue}, 70%, 58%)`;
+    roof = `hsl(${hue}, 70%, 42%)`;
+  }
+  ctx.fillStyle = roof;
+  roundRect(x, y, s, s, 5); ctx.fill();
+  ctx.fillStyle = body;
+  roundRect(x+1.5, y+1.5, s-3, s-7, 4); ctx.fill();
+
+  // 窓
+  ctx.fillStyle = '#dff6ff';
+  const ww = s*0.22, wh = s*0.28, wy = y + s*0.28;
+  roundRect(x + s*0.18, wy, ww, wh, 2); ctx.fill();
+  roundRect(x + s*0.58, wy, ww, wh, 2); ctx.fill();
+
+  // 先頭ライト
+  if (isHead) {
+    ctx.fillStyle = '#fff7c2';
+    const lx = x + (dir.x>0 ? s-6 : dir.x<0 ? 2 : s/2-2);
+    const ly = y + (dir.y>0 ? s-6 : dir.y<0 ? 2 : s/2-2);
+    ctx.beginPath(); ctx.arc(lx+2, ly+2, 2.4, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawStation(gx, gy) {
+  const x = gx*CELL, y = gy*CELL;
+  // 駅舎（赤い三角屋根の建物）
+  ctx.fillStyle = '#e74c3c';
+  ctx.beginPath();
+  ctx.moveTo(x+CELL*0.5, y+CELL*0.12);
+  ctx.lineTo(x+CELL*0.88, y+CELL*0.42);
+  ctx.lineTo(x+CELL*0.12, y+CELL*0.42);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f0d8a8';
+  roundRect(x+CELL*0.2, y+CELL*0.42, CELL*0.6, CELL*0.45, 3); ctx.fill();
+  ctx.fillStyle = '#7a4a2a';
+  roundRect(x+CELL*0.42, y+CELL*0.58, CELL*0.16, CELL*0.29, 2); ctx.fill();
+}
+
+// メインループ
+function loop(t) {
+  if (!running) return;
+  if (!lastTime) lastTime = t;
+  acc += t - lastTime;
+  lastTime = t;
+  while (acc >= tickMs) {
+    step();
+    acc -= tickMs;
+    if (!alive) break;
+  }
+  draw();
+  if (running) requestAnimationFrame(loop);
+}
+
+function startGame() {
+  reset();
+  overlay.classList.add('hide');
+  running = true;
+  lastTime = 0;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+startBtn.addEventListener('click', startGame);
+
+// 初期描画（タイトル裏の盤面）
+reset();
+draw();
+</script>
+</body>
+</html>
