@@ -30,7 +30,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 480px;
+    width: min(480px, 92vw);
     margin: 0 auto 8px;
     font-size: 15px;
   }
@@ -46,6 +46,10 @@
     border-radius: 14px;
     box-shadow: 0 12px 40px #00000066, inset 0 0 0 2px #ffffff10;
     display: block;
+    width: min(480px, 92vw);
+    height: min(480px, 92vw);
+    margin: 0 auto;
+    touch-action: none;   /* スワイプ中にページがスクロールしないように */
   }
   #msg {
     position: relative;
@@ -93,7 +97,7 @@
     <div class="pill">最高 <b id="best">0</b></div>
   </div>
   <canvas id="cv" width="480" height="480"></canvas>
-  <div id="msg">矢印キー / WASD で進路変更。駅 🚉 を通過して車両を増やそう！</div>
+  <div id="msg">スワイプ / 矢印キー で進路変更。駅 🚉 を通過して車両を増やそう！</div>
 </div>
 
 <div id="overlay">
@@ -102,7 +106,8 @@
     駅 🚉 をめざして電車を走らせよう。<br>
     駅を通過するたびに車両が <b>1両</b> 増えていく。<br>
     自分の車両や壁にぶつかると脱線！<br><br>
-    操作: <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> または <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+    操作: 画面を <b>スワイプ</b>（上下左右）<br>
+    パソコンなら <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> / <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
   </p>
   <button id="startBtn">発車！</button>
 </div>
@@ -161,14 +166,39 @@ const KEYMAP = {
   w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0},
   W:{x:0,y:-1}, S:{x:0,y:1}, A:{x:-1,y:0}, D:{x:1,y:0}
 };
+function applyDir(nd) {
+  if (!nd) return;
+  // 逆走（180度ターン）は禁止
+  if (nd.x === -dir.x && nd.y === -dir.y) return;
+  nextDir = nd;
+}
+
 window.addEventListener('keydown', e => {
   const nd = KEYMAP[e.key];
   if (!nd) return;
   e.preventDefault();
-  // 逆走（180度ターン）は禁止
-  if (nd.x === -dir.x && nd.y === -dir.y) return;
-  nextDir = nd;
+  applyDir(nd);
 });
+
+// スマホ：スワイプで進路変更
+let touchX = 0, touchY = 0;
+cv.addEventListener('touchstart', e => {
+  const t = e.changedTouches[0];
+  touchX = t.clientX; touchY = t.clientY;
+  e.preventDefault();
+}, {passive:false});
+cv.addEventListener('touchend', e => {
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchX;
+  const dy = t.clientY - touchY;
+  if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;   // 小さすぎる動きは無視
+  if (Math.abs(dx) > Math.abs(dy)) {
+    applyDir({x: dx > 0 ? 1 : -1, y: 0});
+  } else {
+    applyDir({x: 0, y: dy > 0 ? 1 : -1});
+  }
+  e.preventDefault();
+}, {passive:false});
 
 function step() {
   dir = nextDir;
@@ -216,7 +246,7 @@ function flash(text) {
   msgEl.textContent = text;
   clearTimeout(flash._t);
   flash._t = setTimeout(() => {
-    msgEl.textContent = '矢印キー / WASD で進路変更。駅 🚉 を通過して車両を増やそう！';
+    msgEl.textContent = 'スワイプ / 矢印キー で進路変更。駅 🚉 を通過して車両を増やそう！';
   }, 900);
 }
 
