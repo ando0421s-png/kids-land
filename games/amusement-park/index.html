@@ -65,6 +65,19 @@
   .ride.r2{top:6%;right:3%;}  .ride.r2 img{animation-delay:.5s;}
   .ride.r3{bottom:14%;left:4%;} .ride.r3 img{animation-delay:1s;}
   .ride.r4{bottom:12%;right:4%;} .ride.r4 img{animation-delay:1.5s;}
+  /* under-renovation ride */
+  .ride-closed img{filter:grayscale(.6) opacity(.7) drop-shadow(2px 6px 6px #0003);animation:none;}
+  .ride-closed .label{color:#999;border-color:#ccc;box-shadow:0 3px 0 #aaa;}
+  .ride .ribbon{position:absolute;top:8%;left:50%;transform:translate(-50%,0) rotate(-8deg);
+    background:#ff7676;color:#fff;border-radius:20px;padding:3px 12px;font-size:13px;
+    font-weight:bold;white-space:nowrap;box-shadow:0 3px 0 #d64f4f;}
+  /* map toast notice */
+  .toast{position:absolute;left:50%;bottom:8%;transform:translate(-50%,20px);
+    background:#fff;color:#444;border:3px solid #ffd24d;
+    border-radius:30px;padding:12px 22px;font-size:16px;font-weight:bold;white-space:nowrap;
+    box-shadow:0 4px 0 #e7b424;opacity:0;pointer-events:none;z-index:5;
+    transition:opacity .25s ease,transform .25s ease;}
+  .toast.show{opacity:1;transform:translate(-50%,0);}
 
   /* ---------- GAME ---------- */
   .game-screen{background:linear-gradient(#cdefff,#eafbff);}
@@ -135,7 +148,7 @@
     <div class="ride-area">
       <div class="ride r1" data-game="ferris"><img data-img="ferris_wheel" alt=""><span class="label">かんらんしゃ</span></div>
       <div class="ride r2" data-game="teacup"><img data-img="teacup" alt=""><span class="label">コーヒーカップ</span></div>
-      <div class="ride r3" data-game="pirate"><img data-img="pirate_ship" alt=""><span class="label">バイキング</span></div>
+      <div class="ride r3 ride-closed" data-closed="1"><img data-img="skyflyer" alt=""><span class="label">スカイフライヤー</span><span class="ribbon">かいそうちゅう</span></div>
       <div class="ride r4" data-game="coin"><img data-img="coin_ride" alt=""><span class="label">のりもの</span></div>
     </div>
   </section>
@@ -178,7 +191,7 @@ const timerBar = $("#timer-bar");
 
 /* ---------- image loading with emoji fallback ---------- */
 const IMG_VER="4"; // bump to force browsers to refetch updated images
-const EMOJI = {gate:"🎪",mascot:"🐻",ferris_wheel:"🎡",teacup:"☕",pirate_ship:"⛵",
+const EMOJI = {gate:"🎪",mascot:"🐻",ferris_wheel:"🎡",teacup:"☕",skyflyer:"✈️",
   coin_ride:"🐼",gondola:"🚡",balloon:"🎈",star:"⭐",coin100:"🪙",kid:"🧒",panda_car:"🐼"};
 function hydrateImages(root){
   root.querySelectorAll("img[data-img]").forEach(im=>{
@@ -216,8 +229,20 @@ $("#btn-back").addEventListener("click",()=>{ stopGame(); show("screen-map"); })
 $("#btn-tomap").addEventListener("click",()=>show("screen-map"));
 $("#btn-again").addEventListener("click",()=>startGame(currentGameKey));
 document.querySelectorAll(".ride").forEach(r=>{
-  r.addEventListener("click",()=>startGame(r.dataset.game));
+  r.addEventListener("click",()=>{
+    if(r.dataset.closed){ showToast("いま つくってるよ！ もうちょっと まっててね"); return; }
+    startGame(r.dataset.game);
+  });
 });
+let toastTimer=0;
+function showToast(msg){
+  let t=document.getElementById("map-toast");
+  if(!t){ t=document.createElement("div"); t.id="map-toast"; t.className="toast";
+    document.getElementById("screen-map").appendChild(t); }
+  t.textContent=msg; t.classList.add("show"); sGood();
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove("show"),2200);
+}
 
 /* ---------- sound (WebAudio, no assets) ---------- */
 let actx;
@@ -253,7 +278,6 @@ let currentGameKey=null, raf=0, timers=[], score=0, ended=false, gen=0;
 const GAMES = {
   ferris:{title:"🎡 とまれ！かんらんしゃ", init:initFerris},
   teacup:{title:"☕ ぐるぐるカップ",       init:initTeacup},
-  pirate:{title:"⛵ ドキドキバイキング",    init:initPirate},
   coin:  {title:"🐼 コインのりもの",        init:initCoin},
 };
 function setScore(v){score=v; $("#score-val").textContent=score;}
@@ -529,56 +553,7 @@ function initTeacup(){
 }
 
 /* ============================================================
-   3) PIRATE SHIP — tap when the ship reaches the glowing peak
-============================================================ */
-function initPirate(){
-  const hint=document.createElement("div"); hint.className="hint gobj";
-  hint.innerHTML="フネが ひかった ところに きたら タップ！"; field.appendChild(hint);
-
-  // pivot
-  const pivot=document.createElement("div"); pivot.className="gobj";
-  pivot.style.cssText="position:absolute;left:50%;top:20%;width:0;height:0;z-index:3;";
-  field.appendChild(pivot);
-  const arm=document.createElement("div");
-  arm.style.cssText="position:absolute;left:0;top:0;width:6px;height:160px;background:#caa46a;transform-origin:top center;margin-left:-3px;border-radius:4px;";
-  pivot.appendChild(arm);
-  const ship=imgTag("pirate_ship","width:150px;position:absolute;left:50%;top:160px;transform:translateX(-50%);");
-  arm.appendChild(ship);
-  // glowing target zones at both peaks
-  function zone(side){const z=document.createElement("div");
-    z.textContent="✨"; z.style.cssText="position:absolute;top:40%;"+(side<0?"left:8%":"right:8%")+";font-size:40px;opacity:.85;z-index:2;animation:pulse 1s infinite;";
-    field.appendChild(z); z.classList.add("gobj"); return z;}
-  zone(-1); zone(1);
-
-  const AMP=58; let t=0, chances=8, used=0, good=0, locked=false;
-  loop(dt=>{
-    t+=dt/1000;
-    const ang=AMP*Math.sin(t*2.0); // degrees
-    arm.style.transform="rotate("+ang+"deg)";
-    return true;
-  });
-  function curAng(){return AMP*Math.sin(t*2.0);}
-
-  field.onpointerdown=()=>{
-    if(ended||locked)return;
-    used++;
-    const a=Math.abs(curAng());
-    let pts;
-    if(a>=AMP-8){pts=2;good++;sGood();flash("ナイス！⭐⭐","#ff2e88");addScore(2);}
-    else if(a>=AMP-22){pts=1;good++;sStar();flash("いいね！⭐","#ff8a00");addScore(1);}
-    else{pts=0;sMiss();flash("はやい！",null);}
-    if(used>=chances){ locked=true; later(finish,600); }
-  };
-  function flash(txt,c){floatText(field.clientWidth/2,field.clientHeight*0.62,txt,c);}
-  function finish(){
-    let stars = score>=13?3 : score>=8?2 : score>=3?1:0;
-    endGame({stars,msg:stars>=3?"バイキング マスター！":"どきどき したね！",
-      scoreText:"てんすう ⭐ "+score});
-  }
-}
-
-/* ============================================================
-   4) COIN RIDE — drag coin into slot, then hop to collect stars
+   3) COIN RIDE — drag coin into slot, then hop to collect stars
 ============================================================ */
 function initCoin(){
   // ---- phase 1: insert coin ----
